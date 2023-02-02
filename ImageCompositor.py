@@ -5,6 +5,9 @@ import random
 import cv2
 import numpy as np
 import pickle as pkl
+from color_matcher import ColorMatcher
+from color_matcher.normalizer import Normalizer
+
 
 def segment_image_edges(img, img_real=None, name=""):
     sharpen_filter = np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]])
@@ -126,10 +129,10 @@ def separet_gray_scale(img, real):
             cv2.imshow("preview", object_real)
             k = cv2.waitKey(0)
             if k == ord("y"):
-                mid_point = (x + math.floor((w / 2)), y + math.floor((h / 2)))
+                bound_rect_corners = (y,x,h,w)
                 crop_mask_object = objectes_mask[i][y:y + h, x:x + w]
-                crop_real_object = object_real[y:y + h, x:x + w]
-                all_good_objets_mask_real["crop_objects"].append((mid_point, crop_mask_object, crop_real_object))
+                crop_real_object = object_real[y:y + h, x:x + w,:]
+                all_good_objets_mask_real["crop_objects"].append((bound_rect_corners, crop_mask_object, crop_real_object))
     return all_good_objets_mask_real
 
 def choose_trash_objects(image_dir, image_n):
@@ -163,21 +166,61 @@ def load_objects_pickel(path,name):
             return objects
     return []
 
+def rotate_image(image, angle):
+  image_center = tuple(np.array(image.shape[1::-1]) / 2)
+  rot_mat = cv2.getRotationMatrix2D(image_center, angle, 1.0)
+  result = cv2.warpAffine(image, rot_mat, image.shape[1::-1], flags=cv2.INTER_LINEAR)
+  print(result.shape)
+  return result
+
 def insert_object_randomly(img, objects):
-    pass
+    img_mask = np.zeros_like(img[:,:,0], np.uint8)
+    img_real = img
+    cm = ColorMatcher()
+    for cord, mask, real in objects:
+        x, y, w, h = cord
+        rotate_degree = random.choice([ random.randint(0,15), random.randint(165,195), random.randint(345,360)])
+        mask = rotate_image(mask,rotate_degree)
+        real = rotate_image(real, rotate_degree)
+        place_area_x, place_area_y  = 260, 720
+        if w > 2000 or h > 1600: continue
+        place_w_x, place_w_y = np.maximum(2000-w,place_area_x), np.maximum(1600-h,place_area_y)
+        x = random.randint(place_area_x,place_w_x)
+        y = random.randint(place_area_y,place_w_y)
+        #real = cm.transfer(real,img[750:1600, 260:2000,:], method='mvgd')
+        real = cm.transfer(real,img[x:x+w, y:y+h,:], method='mvgd')
+        real = Normalizer(real).uint8_norm()
+        #show_image(mask)
+        img_mask[x:x+w, y:y+h] = np.where(mask > 0, 255, img_mask[x:x+w, y:y+h])
+        mask_3 = np.expand_dims(mask, 2)
+        mask_3 = np.where(mask_3 > 0, False,True)
+        img_real[x:x+w, y:y+h,:] = np.where(np.repeat(mask_3,3,axis=2), img_real[x:x+w, y:y+h,:],real)
+    #show_image(img_real)
+    #show_image(img_mask)
+    img_mask = cv2.GaussianBlur(img_mask, (25, 25), 0)
+    img_real = cv2.GaussianBlur(img_real, (25, 25), 0)
+    img_mask = cv2.resize(img_mask, (256,256))
+    img_real = cv2.resize(img_real, (256, 256))
+    show_image(img_real)
+    return img_mask, img_real
+
+def show_image(img):
+    cv2.startWindowThread()
+    cv2.namedWindow("preview", cv2.WINDOW_NORMAL)
+    cv2.resizeWindow('preview', 1500, 1300)
+    cv2.imshow("preview",img)
+    k = cv2.waitKey(0)
+    cv2.destroyAllWindows()
 
 def create_random_data(image_dir, objects, quantity):
     rgb_images_names = sorted(filter(lambda x: x.endswith("RGB.png"), os.listdir(image_dir)))
     #images = [cv2.imread(f"{image_dir}{file}") for file in files]
     crop_objects = objects["crop_objects"]
-
-
     for i in range(quantity):
-        random_rgb_name = rgb_images_names[random.randint(0,len(rgb_images_names))]
+        random_rgb_name = rgb_images_names[random.randint(0,len(rgb_images_names)- 1)]
         random_image = cv2.imread(f"{image_dir}{random_rgb_name}")
-        random_objects_n = random.randint(0,np.minimum(23,len(crop_objects)))
-        random_objects_indexs = random.choices(range(0, len(crop_objects)),k=20)
-        random_objects = [crop_objects[index] for index in random_objects_indexs]
+        random_objects_n = random.randint(0,np.minimum(10,len(crop_objects)))
+        random_objects = random.choices(crop_objects,k=random_objects_n)
         image_data = insert_object_randomly(random_image,random_objects)
 
 
@@ -185,12 +228,12 @@ def create_random_data(image_dir, objects, quantity):
 if __name__ == "__main__":
     image_dir_path = "./data/pack200/"
     pickle_path = "./data/objects/"
-    pkl_name = "test"
+    pkl_name = "all"
     object_dict = load_objects_pickel(pickle_path,pkl_name)
     if not object_dict:
-        object_dict = choose_trash_objects(image_dir_path, 1)
+        object_dict = choose_trash_objects(image_dir_path, 399)
         save_objects_pickel(pickle_path, pkl_name, object_dict)
-    create_random_data(image_dir_path,object_dict,2)
+    create_random_data(image_dir_path,object_dict,20)
     #print(object_dict)
 
 
