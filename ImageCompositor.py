@@ -35,9 +35,6 @@ def segment_image_edges(img, img_real=None, name=""):
     return [], []
 
 def segment_image_color( img, color="green"):
-    """
-    Segment the image to extract the object using computer vision techniques
-    """
     gray_img = img
     img = pre_precessing_img(img)
 
@@ -126,7 +123,7 @@ def separet_gray_scale(img, real):
             elif h < 75:
                 continue
             object_real = extract_object(real, mask_single_object, "")
-            cv2.imshow("preview", object_real)
+            #cv2.imshow("preview", object_real)
             k = cv2.waitKey(0)
             if k == ord("y"):
                 bound_rect_corners = (y,x,h,w)
@@ -153,7 +150,7 @@ def choose_trash_objects(image_dir, image_n):
         all_objects["crop_objects"].extend(objects["crop_objects"])
     cv2.destroyAllWindows()
     return all_objects
-def save_objects_pickel(path,name, objects):#
+def save_objects_pickel(path,name, objects):
     full_path = f"{path}{name}.pkl"
     with open(full_path, 'wb') as file:
         pkl.dump(objects, file, pkl.HIGHEST_PROTOCOL)
@@ -166,11 +163,24 @@ def load_objects_pickel(path,name):
             return objects
     return []
 
+def save_data_pickel(path,name, objects):
+    full_path = f"{path}{name}.pkl"
+    with open(full_path, 'wb') as file:
+        pkl.dump(objects, file, pkl.HIGHEST_PROTOCOL)
+
+def load_data_pickel(path,name):
+    full_path = f"{path}{name}.pkl"
+    if os.path.exists(full_path):
+        with open(full_path, 'rb') as file:
+            objects = pkl.load(file)
+            return objects
+    return []
+
 def rotate_image(image, angle):
   image_center = tuple(np.array(image.shape[1::-1]) / 2)
   rot_mat = cv2.getRotationMatrix2D(image_center, angle, 1.0)
   result = cv2.warpAffine(image, rot_mat, image.shape[1::-1], flags=cv2.INTER_LINEAR)
-  print(result.shape)
+  #print(result.shape)
   return result
 
 def insert_object_randomly(img, objects):
@@ -182,26 +192,25 @@ def insert_object_randomly(img, objects):
         rotate_degree = random.choice([ random.randint(0,15), random.randint(165,195), random.randint(345,360)])
         mask = rotate_image(mask,rotate_degree)
         real = rotate_image(real, rotate_degree)
-        place_area_x, place_area_y  = 260, 720
-        if w > 2000 or h > 1600: continue
-        place_w_x, place_w_y = np.maximum(2000-w,place_area_x), np.maximum(1600-h,place_area_y)
+        place_area_x, place_area_y  = 200, 700
+        if w > 1800 or h > 1300: continue
+        place_w_x, place_w_y = np.maximum(img.shape[0]-w,place_area_x), np.maximum(img.shape[1]-h,place_area_y)
         x = random.randint(place_area_x,place_w_x)
         y = random.randint(place_area_y,place_w_y)
         #real = cm.transfer(real,img[750:1600, 260:2000,:], method='mvgd')
         real = cm.transfer(real,img[x:x+w, y:y+h,:], method='mvgd')
         real = Normalizer(real).uint8_norm()
         #show_image(mask)
-        img_mask[x:x+w, y:y+h] = np.where(mask > 0, 255, img_mask[x:x+w, y:y+h])
+        img_mask[x:x+w, y:y+h] = np.where(mask > 0, 1, img_mask[x:x+w, y:y+h])
         mask_3 = np.expand_dims(mask, 2)
         mask_3 = np.where(mask_3 > 0, False,True)
         img_real[x:x+w, y:y+h,:] = np.where(np.repeat(mask_3,3,axis=2), img_real[x:x+w, y:y+h,:],real)
     #show_image(img_real)
     #show_image(img_mask)
-    img_mask = cv2.GaussianBlur(img_mask, (25, 25), 0)
-    img_real = cv2.GaussianBlur(img_real, (25, 25), 0)
-    img_mask = cv2.resize(img_mask, (256,256))
-    img_real = cv2.resize(img_real, (256, 256))
-    show_image(img_real)
+    global image_shape
+    img_mask = cv2.resize(img_mask, image_shape)
+    img_real = cv2.resize(img_real, image_shape)
+    #show_image(img_real)
     return img_mask, img_real
 
 def show_image(img):
@@ -216,24 +225,47 @@ def create_random_data(image_dir, objects, quantity):
     rgb_images_names = sorted(filter(lambda x: x.endswith("RGB.png"), os.listdir(image_dir)))
     #images = [cv2.imread(f"{image_dir}{file}") for file in files]
     crop_objects = objects["crop_objects"]
-    for i in range(quantity):
-        random_rgb_name = rgb_images_names[random.randint(0,len(rgb_images_names)- 1)]
-        random_image = cv2.imread(f"{image_dir}{random_rgb_name}")
+    image_datas = {"change_img": [],
+                   "mask": [] }
+    rand_images = random.choices(rgb_images_names, k=quantity)
+    for i, name in enumerate(rand_images):
+        random_image = cv2.imread(f"{image_dir}{name}")
         random_objects_n = random.randint(0,np.minimum(10,len(crop_objects)))
         random_objects = random.choices(crop_objects,k=random_objects_n)
-        image_data = insert_object_randomly(random_image,random_objects)
+        real_first = cv2.resize(random_image,image_shape)
+        mask, real_second = insert_object_randomly(random_image,random_objects)
+        mask_3 = np.repeat(np.expand_dims(mask, 2), 3, axis=2)
+        im_h = cv2.hconcat([real_first, real_second, mask_3])
+        real_first = cv2.GaussianBlur(real_first, (7,7),0)
+        real_second = cv2.GaussianBlur(real_second, (7,7),0)
+        # show the output image
+        #show_image(im_h)
+        image_datas["change_img"].append((real_first, real_second))
+        image_datas["mask"].append(mask)
+    return image_datas
 
-
+image_shape = (224, 224)
 
 if __name__ == "__main__":
     image_dir_path = "./data/pack200/"
     pickle_path = "./data/objects/"
     pkl_name = "all"
+    dataset = "train_set"
     object_dict = load_objects_pickel(pickle_path,pkl_name)
     if not object_dict:
         object_dict = choose_trash_objects(image_dir_path, 399)
         save_objects_pickel(pickle_path, pkl_name, object_dict)
-    create_random_data(image_dir_path,object_dict,20)
+    data = load_data_pickel(pickle_path, dataset)
+    if not data:
+        data = create_random_data(image_dir_path,object_dict,8)
+        save_objects_pickel(pickle_path,dataset,data)
+    mask = data["mask"]
+    ha = data["change_img"]
+    for i, (left, right) in enumerate(ha):
+        cv2.imwrite(f"./data/Imag_data/{i:02}_0_right.png",right)
+        cv2.imwrite(f"./data/Imag_data/{i:02}_0_left.png", left)
+        cv2.imwrite(f"./data/Imag_data/{i:02}_1_mask.png", mask[i])
+
     #print(object_dict)
 
 
