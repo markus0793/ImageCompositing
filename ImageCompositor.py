@@ -257,7 +257,7 @@ if __name__ == "__main__":
         save_objects_pickel(pickle_path, pkl_name, object_dict)
     data = load_data_pickel(pickle_path, dataset)
     if not data:
-        data = create_random_data(image_dir_path,object_dict,8)
+        data = create_random_data(image_dir_path,object_dict,3000)
         save_objects_pickel(pickle_path,dataset,data)
     mask = data["mask"]
     ha = data["change_img"]
