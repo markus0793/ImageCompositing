@@ -25,7 +25,7 @@ def segment_image_edges(img, img_real=None, name=""):
         masks = []
         for i, c in enumerate(cnt):
             mask = np.zeros_like(img, np.uint8)
-            masked = cv2.drawContours(mask, [c], -1, 255, -1)
+            masked = cv2.drawContours(mask, [c], -1,  (255, 255, 255), -1)
             cv2.floodFill(masked, None, c[0][0], (255, 255, 255))
             low = np.array([1, 1, 1])
             high = np.array([255, 255, 255])
@@ -106,11 +106,9 @@ def closing_img( img):
 def separet_gray_scale(img, real):
     segment_image_edges(img, "edge_grey")
     masks_grey = segment_image_color(img, "gray")
-    all_good_objets_mask_real = {
-                                 "crop_objects": []}
+    all_good_objets_mask_real = { "crop_objects": []}
     for i, mask_grey in enumerate(masks_grey):
         mask_grey = closing_img(mask_grey,)
-        #mask_grey = cv2.GaussianBlur(mask_grey, (11, 11), 0)
         mask_grey = cv2.bilateralFilter(mask_grey, 9, 75, 75)
         mask_all_obj = extract_object(real, mask_grey, f"objects_{i}")
         objectes_mask, cnt = segment_image_edges(mask_all_obj, f"object_edges_{i}")
