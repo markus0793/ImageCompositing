@@ -1,3 +1,4 @@
+import datetime
 import os
 import pickle as pkl
 from multiprocessing import Queue, Process
@@ -32,6 +33,7 @@ class DatasetCreator:
         self.stuff = None
         self.img_filenames = img_filenames
         self.img_dir = img_dir
+        self.save_dir = save_dir
         self.human = human
 
     def img_number(self, n=-1):
@@ -62,12 +64,19 @@ class DatasetCreator:
             done.extend(list(zip(*done_queue.get())))
         for i in range(num_workers):
             task_queue.put("STOP")
+        for pro in pros:
+            pro.join()
         return done
 
     def create_random_images(self, num_workers, files, stuff):
         task_queue = Queue()
         done_queue = Queue()
         tasks = [(insert_stuff_randomly, (f"{self.img_dir}{filename}", stuff)) for filename in files]
+        tasks = []
+        for filename in files:
+            random_number = np.random.randint(0, np.minimum(len(stuff), 30))
+            random_stuff = random.choices(stuff, k=random_number)
+            tasks.append((insert_stuff_randomly, (f"{self.img_dir}{filename}", random_stuff)))
         # Submit tasks
         for task in tasks:
             task_queue.put(task)
@@ -81,6 +90,8 @@ class DatasetCreator:
             done.append(done_queue.get())
         for i in range(num_workers):
             task_queue.put("STOP")
+        for pro in pros:
+            pro.join()
         return done
 
     def extract_stuff(self, num_workers=1):
@@ -104,36 +115,57 @@ class DatasetCreator:
             cv2.destroyAllWindows()
         self.stuff = stuff
 
-    def create_Dataset(self, train_set_p=0.80, verify_set_p=0.20, test_set_p=0.20, num_workers=1, max_background=20):
+    def create_Dataset(self, train_set_p=0.60, validate_set_p=0.20, test_set_p=0.20, num_workers=1, data_set_size=10,
+                       r_seed=10):
         # backgrounds
-
+        np.random.seed(r_seed)
         img_rgb = list(list(zip(*self.img_filenames))[1])
-        max_background = np.minimum(len(img_rgb), max_background)
-        img_rgb = img_rgb[:max_background]
         np.random.shuffle(img_rgb)
         b_size = len(img_rgb)
-        sb_train, sb_verify, sb_test = int(b_size * train_set_p), int(b_size * verify_set_p), int(b_size * test_set_p)
+        sb_train, sb_verify, sb_test = int(b_size * train_set_p), int(b_size * validate_set_p), int(b_size * test_set_p)
         background = {"train": img_rgb[:sb_train],
                       "test": img_rgb[sb_train:sb_train + sb_verify],
                       "verify": img_rgb[sb_train + sb_verify:sb_train + sb_verify + sb_test]}
         s_size = len(self.stuff)
-        ss_train, ss_verify, ss_test = int(s_size * train_set_p), int(s_size * verify_set_p), int(s_size * test_set_p)
+        ss_train, ss_verify, ss_test = int(s_size * train_set_p), int(s_size * validate_set_p), int(s_size * test_set_p)
         np.random.shuffle(self.stuff)
 
         stuff = {"train": self.stuff[:ss_train],
                  "test": self.stuff[ss_train:ss_train + ss_verify],
-                 "verify": self.stuff[ss_train + ss_verify:sb_train + ss_verify + ss_test]}
-
+                 "verify": self.stuff[ss_train + ss_verify:ss_train + ss_verify + ss_test]}
+        sizes = {"train": int(np.round(data_set_size * train_set_p)),
+                 "test": int(np.round(data_set_size * test_set_p)),
+                 "verify": int(np.round(data_set_size * validate_set_p))}
         data = {"train": [], "test": [], "verify": []}
         for key in data.keys():
+            backgrounds = np.random.choice(background[key], sizes[key])
             if num_workers == 1:
-                for filename in background[key]:
-                    data[key].append(insert_stuff_randomly(f"{self.img_dir}{filename}", stuff[key]))
+                for filename in backgrounds:
+                    random_number = np.random.randint(0, np.minimum(len(stuff[key]), 30))
+                    random_stuff = random.choices(stuff[key], k=random_number)
+                    data[key].append(insert_stuff_randomly(f"{self.img_dir}{filename}", random_stuff))
             else:
-                data[key] = self.create_random_images(num_workers, background[key], stuff[key])
+                data[key] = self.create_random_images(num_workers, backgrounds, stuff[key])
+        self.save_dataset(data, sizes)
 
+    def save_dataset(self, data, sizes):
+        now = datetime.datetime.now().strftime('%m-%d_%H:%M:%S')
+        full_path = f"{self.save_dir}Dataset_{now}_" \
+                    f"train({sizes['train']})_" \
+                    f"verify({sizes['verify']})_" \
+                    f"test({sizes['test']}).pkl"
+        with open(full_path, 'wb') as file:
+            pkl.dump(data, file, pkl.HIGHEST_PROTOCOL)
 
-    def preload_pkl_stuff(self, dir_path: str, name):
+    def save_stuff(self, dir_path: str, name: str):
+        full_path = f"{dir_path}{name}.pkl"
+        if self.stuff:
+            with open(full_path, 'wb') as file:
+                pkl.dump(self.stuff, file, pkl.HIGHEST_PROTOCOL)
+        else:
+            print("No stuff to save")
+
+    def load_stuff(self, dir_path: str, name):
         """
         load and replace all previously loaded stuff(extracted objects from given data after the use of extract_stuff
 

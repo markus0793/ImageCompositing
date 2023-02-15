@@ -90,8 +90,7 @@ def extract_contours(img, type="tight"):
 
     edges = cv2.dilate(edges, np.ones((3, 3), np.uint8))
     edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, (5, 5))
-
-    cv2.imwrite(f"./data/objects/{type}mid_test.png", edges)
+    # cv2.imwrite(f"./data/objects/{type}mid_test.png", edges)
     return edges
 
 
@@ -156,7 +155,7 @@ def extract_contours_masks(img_real: np.ndarray, real_classes, max_masks=40):
         # crop
         mask, real, box = crop_to_box(mask, real, box)
         # check if it usefull size
-        if (np.sum(mask) / 255) < box[2] * box[3] / 10:
+        if (np.sum(mask) / 255) < box[2] * box[3] / 8:
             continue
         if box[2] < 150 or box[3] < 150:
             continue
@@ -212,19 +211,21 @@ def insert_stuff_randomly(img_path, stuff):
         rotate_degree = random.randint(0, 360)
         mask = rotate_image(mask, rotate_degree)
         real = rotate_image(real, rotate_degree)
-        random_x = random.randint(random_x_min,random_x_max)
-        random_y = random.randint(400,img.shape[0]-400)
-        x = np.maximum(0,random_x if random_x+w < img.shape[1] else img.shape[1]-(w+1))
-        y = np.maximum(0,random_y if random_y+h < img.shape[0] else img.shape[0]-(h+1))
+        random_x = random.randint(random_x_min, random_x_max)
+        random_y = random.randint(400, img.shape[0] - 800)
+        x = np.maximum(0, random_x if random_x + w < img.shape[1] else img.shape[1] - (w + 1))
+        y = np.maximum(0, random_y if random_y + h < img.shape[0] else img.shape[0] - (h + 1))
         if w >= img.shape[1] or h >= img.shape[0]: continue
-        real = cm.transfer(real,resized, method='mvgd')
+        real = cm.transfer(real, resized, method='mvgd')
         real = Normalizer(real).uint8_norm()
         img_mask[y:y + h, x:x + w] = np.where(mask > 0, 1, img_mask[y:y + h, x:x + w])
         mask_3 = np.expand_dims(mask, 2)
         mask_3 = np.where(mask_3 > 0, False, True)
         img_real[y:y + h, x:x + w, :] = np.where(np.repeat(mask_3, 3, axis=2), img_real[y:y + h, x:x + w, :], real)
     print(" FINISHED")
-    cv2.imwrite(f"./data/objects/{img_path[-10:]}_test.png", img_real)
+    cv2.imwrite(f"./data/objects/{img_path[-10:]}_real.png", img_real)
+    img_mask = cv2.inRange(img_mask, 1, 255)
+    cv2.imwrite(f"./data/objects/{img_path[-10:]}_mask.png", img_mask)
 
     return img_mask, img_real
 

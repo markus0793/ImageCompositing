@@ -15,10 +15,11 @@ if __name__ == "__main__":
     files = sorted(os.listdir(image_dir_path))
     rgb_files = sorted(filter(lambda x: x.endswith("RGB.png"), os.listdir(image_dir_path)))
     lbl_files = sorted(filter(lambda x: x.endswith("LBL.png"), os.listdir(image_dir_path)))
-    filenames = list(zip(*[lbl_files,rgb_files]))
-    dc = DatasetCreator(image_dir_path, filenames, "./objects/")
-    dc.img_number(5)
-    dc.extract_stuff(num_workers=1)
-    dc.create_Dataset(num_workers=1)
-
-
+    filenames = list(zip(*[lbl_files, rgb_files]))
+    dc = DatasetCreator(image_dir_path, filenames, "./data/saves/")
+    dc.img_number()
+    dc.load_stuff("./data/objects/", "test.pkl")
+    if not dc.stuff:
+        dc.extract_stuff(num_workers=4)
+        dc.save_stuff("./data/objects/", "test.pkl")
+    dc.create_Dataset(num_workers=4, data_set_size=40)
