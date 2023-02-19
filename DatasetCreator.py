@@ -68,15 +68,14 @@ class DatasetCreator:
             pro.join()
         return done
 
-    def create_random_images(self, num_workers, files, stuff):
+    def create_random_images(self, num_workers, files, stuff, img_size):
         task_queue = Queue()
         done_queue = Queue()
-        tasks = [(insert_stuff_randomly, (f"{self.img_dir}{filename}", stuff)) for filename in files]
         tasks = []
         for filename in files:
             random_number = np.random.randint(0, np.minimum(len(stuff), 30))
             random_stuff = random.choices(stuff, k=random_number)
-            tasks.append((insert_stuff_randomly, (f"{self.img_dir}{filename}", random_stuff)))
+            tasks.append((insert_stuff_randomly, (f"{self.img_dir}{filename}", random_stuff, img_size)))
         # Submit tasks
         for task in tasks:
             task_queue.put(task)
@@ -116,7 +115,7 @@ class DatasetCreator:
         self.stuff = stuff
 
     def create_Dataset(self, train_set_p=0.60, validate_set_p=0.20, test_set_p=0.20, num_workers=1, data_set_size=10,
-                       r_seed=10):
+                       r_seed=10, img_size=(224,224)):
         # backgrounds
         np.random.seed(r_seed)
         img_rgb = list(list(zip(*self.img_filenames))[1])
@@ -143,13 +142,13 @@ class DatasetCreator:
                 for filename in backgrounds:
                     random_number = np.random.randint(0, np.minimum(len(stuff[key]), 30))
                     random_stuff = random.choices(stuff[key], k=random_number)
-                    data[key].append(insert_stuff_randomly(f"{self.img_dir}{filename}", random_stuff))
+                    data[key].append(insert_stuff_randomly(f"{self.img_dir}{filename}", random_stuff, img_size))
             else:
-                data[key] = self.create_random_images(num_workers, backgrounds, stuff[key])
+                data[key] = self.create_random_images(num_workers, backgrounds, stuff[key], img_size)
         self.save_dataset(data, sizes)
 
     def save_dataset(self, data, sizes):
-        now = datetime.datetime.now().strftime('%m-%d_%H:%M:%S')
+        now = datetime.datetime.now().strftime('%m-%d_%H_%M_%S')
         full_path = f"{self.save_dir}Dataset_{now}_" \
                     f"train({sizes['train']})_" \
                     f"verify({sizes['verify']})_" \

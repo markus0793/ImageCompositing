@@ -18,8 +18,9 @@ if __name__ == "__main__":
     filenames = list(zip(*[lbl_files, rgb_files]))
     dc = DatasetCreator(image_dir_path, filenames, "./data/saves/")
     dc.img_number()
-    dc.load_stuff("./data/objects/", "test.pkl")
+    dc.load_stuff("./data/objects/", "test")
     if not dc.stuff:
-        dc.extract_stuff(num_workers=4)
-        dc.save_stuff("./data/objects/", "test.pkl")
-    dc.create_Dataset(num_workers=4, data_set_size=40)
+        dc.extract_stuff(num_workers=6)
+        dc.save_stuff("./data/objects/", "test")
+    img_size = (224,224)
+    dc.create_Dataset(num_workers=6, data_set_size=500, img_size=img_size)

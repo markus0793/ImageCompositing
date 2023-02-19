@@ -195,12 +195,12 @@ def rotate_image(image, angle):
     return result
 
 
-def insert_stuff_randomly(img_path, stuff):
+def insert_stuff_randomly(img_path, stuff, img_size):
     img = cv2.imread(img_path)
-    print("Insert Random:", end="")
+    print("Insert Random:")
     resized = cv2.resize(img[700:img.shape[1]-400, 100:img.shape[0]-100],(224,224))
     img_mask = np.zeros_like(img[:, :, 0], np.uint8)
-    img_real = img
+    img_real = np.copy(img)
     cm = ColorMatcher()
     place_area_x_left, place_area_x_right = 0, int(img.shape[1] / 3)
     isleft = random.choice([True, False])
@@ -223,11 +223,16 @@ def insert_stuff_randomly(img_path, stuff):
         mask_3 = np.where(mask_3 > 0, False, True)
         img_real[y:y + h, x:x + w, :] = np.where(np.repeat(mask_3, 3, axis=2), img_real[y:y + h, x:x + w, :], real)
     print(" FINISHED")
-    cv2.imwrite(f"./data/objects/{img_path[-10:]}_real.png", img_real)
-    img_mask = cv2.inRange(img_mask, 1, 255)
-    cv2.imwrite(f"./data/objects/{img_path[-10:]}_mask.png", img_mask)
+    #cv2.imwrite(f"./data/objects/{img_path[-10:]}_real.png", img_real)
+    #img_mask = cv2.inRange(img_mask, 1, 255)
+    #cv2.imwrite(f"./data/objects/{img_path[-10:]}_mask.png", img_mask)
+    img = cv2.GaussianBlur(img, (7, 7), 0)
+    img_real = cv2.GaussianBlur(img_real, (7, 7), 0)
+    img = cv2.resize(img,img_size)
+    img_real = cv2.resize(img_real, img_size)
+    img_mask = cv2.resize(img_mask, img_size)
 
-    return img_mask, img_real
+    return {"change_img": (img, img_real), "mask": img_mask}
 
 
 # workers util
