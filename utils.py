@@ -95,6 +95,13 @@ def extract_contours(img, type="tight"):
 
 
 def crop_to_box(mask, real, box):
+    """
+    Crops the stuff with a bit of room that it can be rotated easiely
+    :param mask: The stuff mask
+    :param real: The stuff real image
+    :param box: the boundingbox of the stuff
+    :return: mask(crop), real(crop), box(new box extended)
+    """
     max_x = mask.shape[1]
     max_y = mask.shape[0]
     x, y, w, h = box
@@ -171,7 +178,7 @@ def extract_contours_masks(img_real: np.ndarray, real_classes, max_masks=40):
 def extract_masks_mp(img_dir: str, filename):
     """
     used to give to a worker or directly.
-    Can also be used normally gives filename with (lbl, real) file and extraxt mask
+    Can also be used normally gives filename with (lbl, real) file and extract mask
     :param img_dir: Directory of the images
     :param filename: file name of the image (lbl, real)
     :return: masks, reals, box
@@ -188,6 +195,13 @@ def extract_masks_mp(img_dir: str, filename):
 
 
 def rotate_image(image, angle):
+    """
+    Rotates an image with an angle
+    Attention could cut Images if the object is not in the center or the aspact ratio is wrong
+    :param image:
+    :param angle:
+    :return: rotated image same size as input image
+    """
     image_center = tuple(np.array(image.shape[1::-1]) / 2)
     rot_mat = cv2.getRotationMatrix2D(image_center, angle, 1.0)
     result = cv2.warpAffine(image, rot_mat, image.shape[1::-1], flags=cv2.INTER_LINEAR)
@@ -196,9 +210,16 @@ def rotate_image(image, angle):
 
 
 def insert_stuff_randomly(img_path, stuff, img_size):
+    """
+    Input the stuff( the objects) into the full size image on the img_path and than resize the image
+    :param img_path: Orignial full size image Path
+    :param stuff: Extracted stuff(objects) from DatasetCreator
+    :param img_size: to resize size
+    :return: resized image with stuff in it
+    """
     img = cv2.imread(img_path)
     print("Insert Random:")
-    resized = cv2.resize(img[700:img.shape[1]-400, 100:img.shape[0]-100],(224,224))
+    resized = cv2.resize(img[700:img.shape[1] - 400, 100:img.shape[0] - 100], (224, 224))
     img_mask = np.zeros_like(img[:, :, 0], np.uint8)
     img_real = np.copy(img)
     cm = ColorMatcher()
@@ -238,10 +259,5 @@ def insert_stuff_randomly(img_path, stuff, img_size):
 # workers util
 def worker(input, output):
     for func, args in iter(input.get, 'STOP'):
-        result = calculate(func, args)
+        result = func(*args)
         output.put(result)
-
-
-def calculate(func, args):
-    result = func(*args)
-    return result
